@@ -43,3 +43,6 @@ Thumbs.db
 /data/
 *.db
 *.sqlite
+
+# Build output
+main

@@ -34,8 +34,23 @@ func (e *Engine) AddNode(id string, nodeType NodeType, metadata map[string]inter
 		return fmt.Errorf("failed to add node: %w", err)
 	}
 
-	// Initialize embedding for new node
-	e.gnn.InitializeEmbeddings()
+	// Initialize embedding for new node (only for this node to avoid O(n²) behavior)
+	e.gnn.InitializeNodeEmbedding(node.ID)
+
+	return nil
+}
+
+// addNodeWithoutEmbeddingInit adds a node without initializing embeddings (for batch operations)
+func (e *Engine) addNodeWithoutEmbeddingInit(id string, nodeType NodeType, metadata map[string]interface{}) error {
+	node := &Node{
+		ID:       id,
+		Type:     nodeType,
+		Metadata: metadata,
+	}
+
+	if err := e.graph.AddNode(node); err != nil {
+		return fmt.Errorf("failed to add node: %w", err)
+	}
 
 	return nil
 }
@@ -152,7 +167,11 @@ func (e *Engine) LoadSampleData() {
 	}
 
 	for _, user := range users {
-		e.AddNode(user["id"].(string), UserNode, user)
+		err := e.addNodeWithoutEmbeddingInit(user["id"].(string), UserNode, user)
+		if err != nil {
+			fmt.Printf("Error adding user %s: %v\n", user["id"], err)
+			return
+		}
 	}
 
 	// Add sample posts
@@ -163,7 +182,11 @@ func (e *Engine) LoadSampleData() {
 	}
 
 	for _, post := range posts {
-		e.AddNode(post["id"].(string), PostNode, post)
+		err := e.addNodeWithoutEmbeddingInit(post["id"].(string), PostNode, post)
+		if err != nil {
+			fmt.Printf("Error adding post %s: %v\n", post["id"], err)
+			return
+		}
 	}
 
 	// Add sample connections
@@ -172,6 +195,9 @@ func (e *Engine) LoadSampleData() {
 	e.AddEdge("sarah", "post1", 1.0, "author")
 	e.AddEdge("jake", "post1", 0.7, "like")
 	e.AddEdge("emma", "post1", 0.6, "like")
+
+	// Initialize all embeddings once at the end for efficiency
+	e.gnn.InitializeEmbeddings()
 }
 
 // Training methods for hybrid GNN

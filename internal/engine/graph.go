@@ -180,8 +180,8 @@ func (g *Graph) AddEdge(edge *Edge) error {
 	// Update followback metrics if this is a friendship/follow relationship
 	if (edge.EdgeType == "friend" || edge.EdgeType == "follow") &&
 		g.nodes[edge.From].Type == UserNode && g.nodes[edge.To].Type == UserNode {
-		g.updateFollowbackMetrics(edge.From)
-		g.updateFollowbackMetrics(edge.To)
+		g.updateFollowbackMetricsUnsafe(edge.From)
+		g.updateFollowbackMetricsUnsafe(edge.To)
 	}
 
 	return nil
@@ -475,6 +475,11 @@ func (g *Graph) calculateFollowbackMetrics(userID string) *FollowbackMetrics {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
+	return g.calculateFollowbackMetricsUnsafe(userID)
+}
+
+// calculateFollowbackMetricsUnsafe calculates followback ratios and health scores for a user without acquiring locks (caller must hold lock)
+func (g *Graph) calculateFollowbackMetricsUnsafe(userID string) *FollowbackMetrics {
 	node, exists := g.nodes[userID]
 	if !exists || node.Type != UserNode {
 		return &FollowbackMetrics{}
@@ -591,6 +596,11 @@ func (g *Graph) updateFollowbackMetrics(userID string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	g.updateFollowbackMetricsUnsafe(userID)
+}
+
+// updateFollowbackMetricsUnsafe updates followback metrics for a user without acquiring locks (caller must hold lock)
+func (g *Graph) updateFollowbackMetricsUnsafe(userID string) {
 	node, exists := g.nodes[userID]
 	if !exists || node.Type != UserNode {
 		return
@@ -600,8 +610,8 @@ func (g *Graph) updateFollowbackMetrics(userID string) {
 		node.Engagement = &EngagementMetrics{}
 	}
 
-	// Calculate fresh followback metrics
-	metrics := g.calculateFollowbackMetrics(userID)
+	// Calculate fresh followback metrics (using unsafe version since we already hold the lock)
+	metrics := g.calculateFollowbackMetricsUnsafe(userID)
 	node.Engagement.FollowbackMetrics = metrics
 	node.UpdatedAt = time.Now()
 }

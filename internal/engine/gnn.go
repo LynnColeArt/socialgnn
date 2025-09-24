@@ -104,16 +104,35 @@ func NewGNN(graph *Graph, embeddingDim int, aggType AggregationType) *GNN {
 
 // InitializeEmbeddings initializes random embeddings for all nodes
 func (gnn *GNN) InitializeEmbeddings() {
-	gnn.mu.Lock()
-	defer gnn.mu.Unlock()
+	// Get all node types and process them
+	nodeTypes := []NodeType{UserNode, PostNode, BusinessNode, EventNode, CommentNode}
 
-	for _, node := range gnn.Graph.nodes {
-		if len(node.Embedding) == 0 {
-			node.Embedding = make([]float64, gnn.EmbeddingDim)
-			for i := range node.Embedding {
-				// Xavier initialization
-				node.Embedding[i] = (rand.Float64() - 0.5) * 2.0 * math.Sqrt(6.0/float64(gnn.EmbeddingDim))
+	for _, nodeType := range nodeTypes {
+		nodes := gnn.Graph.GetNodesByType(nodeType)
+		for _, node := range nodes {
+			if len(node.Embedding) == 0 {
+				node.Embedding = make([]float64, gnn.EmbeddingDim)
+				for i := range node.Embedding {
+					// Xavier initialization
+					node.Embedding[i] = (rand.Float64() - 0.5) * 2.0 * math.Sqrt(6.0/float64(gnn.EmbeddingDim))
+				}
 			}
+		}
+	}
+}
+
+// InitializeNodeEmbedding initializes embedding for a single node (more efficient than InitializeEmbeddings for single nodes)
+func (gnn *GNN) InitializeNodeEmbedding(nodeID string) {
+	node, exists := gnn.Graph.GetNode(nodeID)
+	if !exists {
+		return
+	}
+
+	if len(node.Embedding) == 0 {
+		node.Embedding = make([]float64, gnn.EmbeddingDim)
+		for i := range node.Embedding {
+			// Xavier initialization
+			node.Embedding[i] = (rand.Float64() - 0.5) * 2.0 * math.Sqrt(6.0/float64(gnn.EmbeddingDim))
 		}
 	}
 }
