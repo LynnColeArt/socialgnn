@@ -32,7 +32,7 @@ Interactions → Graph Edges → Message Passing → Rankings
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/LynnColeArt/socialgnn.git
 cd socialgnn
 
 # Build the application
