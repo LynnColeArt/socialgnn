@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LynnColeArt/socialgnn/internal/engine"
+	"github.com/LynnColeArt/socialgnn/pkg/engine"
 )
 
 type httpResponse struct {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/LynnColeArt/socialgnn/internal/engine"
+	"github.com/LynnColeArt/socialgnn/pkg/engine"
 )
 
 // Server handles HTTP API requests

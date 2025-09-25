@@ -21,14 +21,14 @@
 - Calling `POST /api/train/batch` without any stored training examples now returns HTTP 400 with a clear error payload (`{"error": "no training data available"}`) instead of a generic server error.
 
 ## Fixes Implemented
-1. **Training batch semantics & error handling** (`internal/api/server.go`, `internal/engine/engine.go`, `internal/engine/gnn.go`)
+1. **Training batch semantics & error handling** (`internal/api/server.go`, `pkg/engine/engine.go`, `pkg/engine/gnn.go`)
    - Added explicit `batch_size` support, sensible defaults, and epoch looping so training runs even when requested batches exceed the number of stored examples. Introduced the shared `ErrNoTrainingData` sentinel and converts it to an HTTP 400 response with a descriptive JSON payload. Covered by regression tests including `TestEngineTrainBatchHandlesLargeBatch` and integration coverage.
-2. **Followback metrics for inactive users** (`internal/engine/engine.go`)
+2. **Followback metrics for inactive users** (`pkg/engine/engine.go`)
    - The engine now verifies user existence before returning metrics and no longer treats "all zero" as missing data. Covered by `TestGetFollowbackMetricsReturnsZerosForNewUsers`.
-3. **Temporal decay cleanup** (`internal/engine/graph.go`)
+3. **Temporal decay cleanup** (`pkg/engine/graph.go`)
    - Edges older than `maxAge` are deleted, decayed weights below 0.1 are purged, and empty adjacency maps are cleaned up, matching documentation guarantees. Verified by `TestApplyDecayRemovesExpiredAndWeakEdges`.
-4. **Test coverage & docs**
-   - Added HTTP integration tests under `internal/api` for training, followback, and recommendations, expanded unit coverage in `internal/engine`, and documented training endpoint defaults/error responses in `MANUAL.md`.
+4. **Public engine package & docs**
+   - Moved the GNN engine to `pkg/engine` for external consumption, added HTTP integration tests under `internal/api`, expanded unit coverage in `pkg/engine`, and documented training endpoint defaults/error responses in `MANUAL.md` and `README.md` (library usage section).
 
 ## Remaining Observations
 - Consider extending integration coverage to spam and comment ranking endpoints to catch future regressions.

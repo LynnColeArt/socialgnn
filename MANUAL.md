@@ -597,7 +597,7 @@ import (
 
     "go.mongodb.org/mongo-driver/mongo"
     "go.mongodb.org/mongo-driver/mongo/options"
-    "github.com/LynnColeArt/socialgnn/internal/engine"
+    "github.com/LynnColeArt/socialgnn/pkg/engine"
 )
 
 type SocialService struct {
