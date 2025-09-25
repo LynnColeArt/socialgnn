@@ -157,7 +157,7 @@ func (e *Engine) ApplyDecay() {
 }
 
 // LoadSampleData loads the Riverside community sample data
-func (e *Engine) LoadSampleData() {
+func (e *Engine) LoadSampleData() error {
 	// Add sample users
 	users := []map[string]interface{}{
 		{"id": "sarah", "name": "Sarah Mitchell", "job": "Teacher", "interests": []string{"education", "hiking", "photography"}},
@@ -167,10 +167,8 @@ func (e *Engine) LoadSampleData() {
 	}
 
 	for _, user := range users {
-		err := e.addNodeWithoutEmbeddingInit(user["id"].(string), UserNode, user)
-		if err != nil {
-			fmt.Printf("Error adding user %s: %v\n", user["id"], err)
-			return
+		if err := e.addNodeWithoutEmbeddingInit(user["id"].(string), UserNode, user); err != nil {
+			return fmt.Errorf("load sample user %s: %w", user["id"], err)
 		}
 	}
 
@@ -182,22 +180,31 @@ func (e *Engine) LoadSampleData() {
 	}
 
 	for _, post := range posts {
-		err := e.addNodeWithoutEmbeddingInit(post["id"].(string), PostNode, post)
-		if err != nil {
-			fmt.Printf("Error adding post %s: %v\n", post["id"], err)
-			return
+		if err := e.addNodeWithoutEmbeddingInit(post["id"].(string), PostNode, post); err != nil {
+			return fmt.Errorf("load sample post %s: %w", post["id"], err)
 		}
 	}
 
 	// Add sample connections
-	e.AddEdge("sarah", "jake", 0.8, "friend")
-	e.AddEdge("jake", "sarah", 0.8, "friend")
-	e.AddEdge("sarah", "post1", 1.0, "author")
-	e.AddEdge("jake", "post1", 0.7, "like")
-	e.AddEdge("emma", "post1", 0.6, "like")
+	if err := e.AddEdge("sarah", "jake", 0.8, "friend"); err != nil {
+		return fmt.Errorf("load sample edge sarah->jake: %w", err)
+	}
+	if err := e.AddEdge("jake", "sarah", 0.8, "friend"); err != nil {
+		return fmt.Errorf("load sample edge jake->sarah: %w", err)
+	}
+	if err := e.AddEdge("sarah", "post1", 1.0, "author"); err != nil {
+		return fmt.Errorf("load sample edge sarah->post1: %w", err)
+	}
+	if err := e.AddEdge("jake", "post1", 0.7, "like"); err != nil {
+		return fmt.Errorf("load sample edge jake->post1: %w", err)
+	}
+	if err := e.AddEdge("emma", "post1", 0.6, "like"); err != nil {
+		return fmt.Errorf("load sample edge emma->post1: %w", err)
+	}
 
 	// Initialize all embeddings once at the end for efficiency
 	e.gnn.InitializeEmbeddings()
+	return nil
 }
 
 // Training methods for hybrid GNN
@@ -213,13 +220,20 @@ func (e *Engine) TrainBatch(epochs, batchSize int) (float64, error) {
 	if batchSize <= 0 {
 		batchSize = 32
 	}
+	totalLoss := 0.0
+	totalExamples := 0
 	for i := 0; i < epochs; i++ {
-		if err := e.gnn.TrainOnBatch(batchSize); err != nil {
+		batchLoss, batchCount, err := e.gnn.TrainOnBatch(batchSize)
+		if err != nil {
 			return 0.0, err
 		}
+		totalLoss += batchLoss
+		totalExamples += batchCount
 	}
-	// Return a synthetic loss for now - could be improved with actual loss calculation
-	return 0.1, nil
+	if totalExamples == 0 {
+		return 0.0, nil
+	}
+	return totalLoss / float64(totalExamples), nil
 }
 
 func (e *Engine) GetTrainingExampleCount() int {

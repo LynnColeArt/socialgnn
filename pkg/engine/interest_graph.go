@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -42,6 +43,7 @@ type UserProfile struct {
 
 // BuildInterestConnections creates edges between all users based on interest similarity
 func (ig *InterestGraph) BuildInterestConnections(profiles []UserProfile) error {
+	var errs []string
 	for i, user1 := range profiles {
 		for j, user2 := range profiles {
 			if i >= j { // Avoid duplicates and self-connections
@@ -55,14 +57,19 @@ func (ig *InterestGraph) BuildInterestConnections(profiles []UserProfile) error 
 				edgeType := ig.determineEdgeType(user1, user2, similarity)
 
 				// Create bidirectional edges
-				err1 := ig.engine.AddEdge(user1.UserID, user2.UserID, similarity, edgeType)
-				err2 := ig.engine.AddEdge(user2.UserID, user1.UserID, similarity, edgeType)
-
-				if err1 != nil || err2 != nil {
-					continue // Skip if nodes don't exist yet
+				if err := ig.engine.AddEdge(user1.UserID, user2.UserID, similarity, edgeType); err != nil {
+					errs = append(errs, fmt.Sprintf("%s->%s: %v", user1.UserID, user2.UserID, err))
+					continue
+				}
+				if err := ig.engine.AddEdge(user2.UserID, user1.UserID, similarity, edgeType); err != nil {
+					errs = append(errs, fmt.Sprintf("%s->%s: %v", user2.UserID, user1.UserID, err))
 				}
 			}
 		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("interest connections had %d errors: %s", len(errs), strings.Join(errs, "; "))
 	}
 
 	return nil

@@ -357,10 +357,21 @@ func (s *Server) getUserConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) loadSampleInterestData(w http.ResponseWriter, r *http.Request) {
-	// Load sample Riverside profiles
 	profiles := s.interestGraph.LoadRiversideInterestProfiles()
+	results := struct {
+		Status           string                 `json:"status"`
+		Message          string                 `json:"message"`
+		Profiles         int                    `json:"profiles"`
+		Stats            map[string]interface{} `json:"stats"`
+		UserErrors       []string               `json:"user_errors"`
+		ConnectionErrors []string               `json:"connection_errors"`
+	}{
+		Status:   "success",
+		Message:  "Sample interest data loaded successfully",
+		Profiles: len(profiles),
+		Stats:    s.engine.GetStats(),
+	}
 
-	// Add users to graph if they don't exist
 	for _, profile := range profiles {
 		userMetadata := map[string]interface{}{
 			"name":          profile.UserID,
@@ -372,25 +383,24 @@ func (s *Server) loadSampleInterestData(w http.ResponseWriter, r *http.Request) 
 			"activity_tags": profile.ActivityTags,
 		}
 
-		// Try to add user (will skip if already exists)
-		s.engine.AddNode(profile.UserID, engine.UserNode, userMetadata)
+		if err := s.engine.AddNode(profile.UserID, engine.UserNode, userMetadata); err != nil {
+			results.UserErrors = append(results.UserErrors, err.Error())
+		}
 	}
 
-	// Build interest connections
 	if err := s.interestGraph.BuildInterestConnections(profiles); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := map[string]interface{}{
-		"status":   "success",
-		"message":  "Sample interest data loaded successfully",
-		"profiles": len(profiles),
-		"stats":    s.engine.GetStats(),
+		results.Status = "partial_success"
+		results.Message = "Interest connections built with errors"
+		results.ConnectionErrors = append(results.ConnectionErrors, err.Error())
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	statusCode := http.StatusOK
+	if len(results.UserErrors) > 0 || len(results.ConnectionErrors) > 0 {
+		statusCode = http.StatusMultiStatus
+	}
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(results)
 }
 
 // Engagement API handlers
