@@ -374,6 +374,53 @@ GET /api/comments/post_123
 }
 ```
 
+### Training Endpoints
+
+#### Add Training Example
+
+```bash
+POST /api/train/example
+Content-Type: application/json
+
+{
+  "user_id": "user_sarah",
+  "item_id": "post_123",
+  "rating": 1
+}
+```
+
+**Response:**
+```json
+{
+  "status": "example_added"
+}
+```
+
+#### Run Mini-Batch Training
+
+```bash
+POST /api/train/batch
+Content-Type: application/json
+
+{
+  "epochs": 3,
+  "batch_size": 64
+}
+```
+
+- Both `epochs` and `batch_size` are optional and default to `1` and `32` respectively when omitted or invalid.
+- The endpoint returns HTTP `200` with the number of examples processed once at least one training example exists.
+- If no training data has been submitted yet, the endpoint returns HTTP `400` with an error payload instead of a server error.
+
+**Response:**
+```json
+{
+  "loss": 0.1,
+  "epochs_completed": 3,
+  "training_examples": 42
+}
+```
+
 ### Admin and Statistics
 
 #### Get Graph Statistics

@@ -1,6 +1,9 @@
 package engine
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestEngineTrainBatchHandlesLargeBatch(t *testing.T) {
 	engine := NewEngine()
@@ -26,8 +29,8 @@ func TestEngineTrainBatchHandlesLargeBatch(t *testing.T) {
 
 func TestEngineTrainBatchRequiresTrainingData(t *testing.T) {
 	engine := NewEngine()
-	if _, err := engine.TrainBatch(1, 2); err == nil {
-		t.Fatal("expected error when no training data is available")
+	if _, err := engine.TrainBatch(1, 2); !errors.Is(err, ErrNoTrainingData) {
+		t.Fatalf("expected ErrNoTrainingData, got %v", err)
 	}
 }
 

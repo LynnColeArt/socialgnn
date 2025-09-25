@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -38,6 +39,8 @@ type HybridGNN struct {
 	TrainingData    []*TrainingExample
 	mu              sync.RWMutex
 }
+
+var ErrNoTrainingData = errors.New("no training data available")
 
 // TrainingExample represents a training sample for the GNN
 type TrainingExample struct {
@@ -481,7 +484,7 @@ func (h *HybridGNN) TrainOnBatch(batchSize int) error {
 	h.mu.Lock()
 	if len(h.TrainingData) == 0 {
 		h.mu.Unlock()
-		return fmt.Errorf("no training data available")
+		return ErrNoTrainingData
 	}
 
 	// Sample random batch from recent training data

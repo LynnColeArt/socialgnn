@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -623,6 +624,13 @@ func (s *Server) trainBatch(w http.ResponseWriter, r *http.Request) {
 
 	loss, err := s.engine.TrainBatch(req.Epochs, req.BatchSize)
 	if err != nil {
+		if errors.Is(err, engine.ErrNoTrainingData) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
