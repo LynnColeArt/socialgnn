@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -126,16 +127,16 @@ type SpamResponse struct {
 }
 
 type UserSpamResponse struct {
-	UserID              string  `json:"user_id"`
-	PostCount           int     `json:"post_count"`
-	AvgPostEngagement   float64 `json:"avg_post_engagement"`
-	FriendToPostRatio   float64 `json:"friend_to_post_ratio"`
-	FollowbackRate      float64 `json:"followback_rate"`
-	FollowerCount       int     `json:"follower_count"`
-	FollowHarvesting    float64 `json:"follow_harvesting"`
-	SpamProbability     float64 `json:"spam_probability"`
-	IsLikelySpammer     bool    `json:"is_likely_spammer"`
-	Status              string  `json:"status"`
+	UserID            string  `json:"user_id"`
+	PostCount         int     `json:"post_count"`
+	AvgPostEngagement float64 `json:"avg_post_engagement"`
+	FriendToPostRatio float64 `json:"friend_to_post_ratio"`
+	FollowbackRate    float64 `json:"followback_rate"`
+	FollowerCount     int     `json:"follower_count"`
+	FollowHarvesting  float64 `json:"follow_harvesting"`
+	SpamProbability   float64 `json:"spam_probability"`
+	IsLikelySpammer   bool    `json:"is_likely_spammer"`
+	Status            string  `json:"status"`
 }
 
 // Handlers
@@ -251,7 +252,7 @@ func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "healthy",
+		"status":  "healthy",
 		"service": "socialgnn-api",
 	})
 }
@@ -361,12 +362,12 @@ func (s *Server) loadSampleInterestData(w http.ResponseWriter, r *http.Request) 
 	// Add users to graph if they don't exist
 	for _, profile := range profiles {
 		userMetadata := map[string]interface{}{
-			"name":         profile.UserID,
-			"age":          profile.Age,
-			"occupation":   profile.Occupation,
-			"joined_at":    profile.JoinedAt,
-			"interests":    profile.Interests,
-			"location":     profile.Location,
+			"name":          profile.UserID,
+			"age":           profile.Age,
+			"occupation":    profile.Occupation,
+			"joined_at":     profile.JoinedAt,
+			"interests":     profile.Interests,
+			"location":      profile.Location,
 			"activity_tags": profile.ActivityTags,
 		}
 
@@ -517,16 +518,16 @@ func (s *Server) getUserSpamFlags(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := UserSpamResponse{
-		UserID:              userID,
-		PostCount:           spamFlags.PostCount,
-		AvgPostEngagement:   spamFlags.AvgPostEngagement,
-		FriendToPostRatio:   spamFlags.FriendToPostRatio,
-		FollowbackRate:      spamFlags.FollowbackRate,
-		FollowerCount:       spamFlags.FollowerCount,
-		FollowHarvesting:    spamFlags.FollowHarvesting,
-		SpamProbability:     spamFlags.SpamProbability,
-		IsLikelySpammer:     spamFlags.IsLikelySpammer,
-		Status:              "success",
+		UserID:            userID,
+		PostCount:         spamFlags.PostCount,
+		AvgPostEngagement: spamFlags.AvgPostEngagement,
+		FriendToPostRatio: spamFlags.FriendToPostRatio,
+		FollowbackRate:    spamFlags.FollowbackRate,
+		FollowerCount:     spamFlags.FollowerCount,
+		FollowHarvesting:  spamFlags.FollowHarvesting,
+		SpamProbability:   spamFlags.SpamProbability,
+		IsLikelySpammer:   spamFlags.IsLikelySpammer,
+		Status:            "success",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -560,10 +561,10 @@ func (s *Server) getRankedComments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := map[string]interface{}{
-		"post_id":        postID,
+		"post_id":         postID,
 		"ranked_comments": rankedComments,
-		"total":          len(rankedComments),
-		"algorithm":      "engagement_boost + time_decay",
+		"total":           len(rankedComments),
+		"algorithm":       "engagement_boost + time_decay",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -572,19 +573,20 @@ func (s *Server) getRankedComments(w http.ResponseWriter, r *http.Request) {
 
 // Training handlers
 type TrainingExampleRequest struct {
-	UserID   string  `json:"user_id"`
-	ItemID   string  `json:"item_id"`
-	Rating   float64 `json:"rating"`
+	UserID string  `json:"user_id"`
+	ItemID string  `json:"item_id"`
+	Rating float64 `json:"rating"`
 }
 
 type TrainBatchRequest struct {
-	Epochs int `json:"epochs"`
+	Epochs    int `json:"epochs"`
+	BatchSize int `json:"batch_size"`
 }
 
 type TrainBatchResponse struct {
-	Loss      float64 `json:"loss"`
-	Epochs    int     `json:"epochs_completed"`
-	Examples  int     `json:"training_examples"`
+	Loss     float64 `json:"loss"`
+	Epochs   int     `json:"epochs_completed"`
+	Examples int     `json:"training_examples"`
 }
 
 func (s *Server) addTrainingExample(w http.ResponseWriter, r *http.Request) {
@@ -604,12 +606,22 @@ func (s *Server) addTrainingExample(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) trainBatch(w http.ResponseWriter, r *http.Request) {
-	var req TrainBatchRequest
+	req := TrainBatchRequest{Epochs: 1, BatchSize: 32}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		req.Epochs = 10 // Default epochs
+		if err != io.EOF {
+			// Fallback to defaults for backward compatibility when body is empty or invalid
+			req.Epochs = 1
+			req.BatchSize = 32
+		}
+	}
+	if req.Epochs <= 0 {
+		req.Epochs = 1
+	}
+	if req.BatchSize <= 0 {
+		req.BatchSize = 32
 	}
 
-	loss, err := s.engine.TrainBatch(req.Epochs)
+	loss, err := s.engine.TrainBatch(req.Epochs, req.BatchSize)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -29,14 +29,14 @@ type EmotionalReactions struct {
 
 // UserSpamMetrics tracks user-level spam indicators
 type UserSpamMetrics struct {
-	PostCount           int     `json:"post_count"`            // Total posts created by user
-	AvgPostEngagement   float64 `json:"avg_post_engagement"`   // Average engagement per post
-	FriendToPostRatio   float64 `json:"friend_to_post_ratio"`  // Friends / Posts ratio
-	FollowbackRate      float64 `json:"followback_rate"`       // Percentage of mutual follows (0.0-1.0)
-	FollowerCount       int     `json:"follower_count"`        // Total followers
-	FollowHarvesting    float64 `json:"follow_harvesting"`     // Follow harvesting penalty (0.0-1.0)
-	SpamProbability     float64 `json:"spam_probability"`      // 0.0-1.0 spam likelihood
-	IsLikelySpammer     bool    `json:"is_likely_spammer"`     // True if spam probability > threshold
+	PostCount         int     `json:"post_count"`           // Total posts created by user
+	AvgPostEngagement float64 `json:"avg_post_engagement"`  // Average engagement per post
+	FriendToPostRatio float64 `json:"friend_to_post_ratio"` // Friends / Posts ratio
+	FollowbackRate    float64 `json:"followback_rate"`      // Percentage of mutual follows (0.0-1.0)
+	FollowerCount     int     `json:"follower_count"`       // Total followers
+	FollowHarvesting  float64 `json:"follow_harvesting"`    // Follow harvesting penalty (0.0-1.0)
+	SpamProbability   float64 `json:"spam_probability"`     // 0.0-1.0 spam likelihood
+	IsLikelySpammer   bool    `json:"is_likely_spammer"`    // True if spam probability > threshold
 }
 
 // FollowbackMetrics tracks followback ratios for user social health
@@ -55,11 +55,11 @@ type EngagementMetrics struct {
 	Bookmarks         int                `json:"bookmarks"`
 	Comments          int                `json:"comments"`
 	Views             int                `json:"views"`
-	Clickthroughs     int                `json:"clickthroughs"`     // User clicks to view full content
-	Score             float64            `json:"score"`             // Calculated engagement score
-	Persuasiveness    float64            `json:"persuasiveness"`    // User persuasiveness score (for UserNode only)
-	SpamScore         float64            `json:"spam_score"`        // Spam/clickbait detection score (higher = more spammy)
-	UserSpamFlags     *UserSpamMetrics   `json:"user_spam_flags"`   // User-level spam detection (for UserNode only)
+	Clickthroughs     int                `json:"clickthroughs"`      // User clicks to view full content
+	Score             float64            `json:"score"`              // Calculated engagement score
+	Persuasiveness    float64            `json:"persuasiveness"`     // User persuasiveness score (for UserNode only)
+	SpamScore         float64            `json:"spam_score"`         // Spam/clickbait detection score (higher = more spammy)
+	UserSpamFlags     *UserSpamMetrics   `json:"user_spam_flags"`    // User-level spam detection (for UserNode only)
 	FollowbackMetrics *FollowbackMetrics `json:"followback_metrics"` // Followback ratio tracking (for UserNode only)
 }
 
@@ -230,10 +230,11 @@ func (g *Graph) ApplyDecay(decayRate float64, maxAge time.Duration) {
 
 	now := time.Now()
 
-	for _, edgeMap := range g.edges {
-		for _, edge := range edgeMap {
+	for fromNode, edgeMap := range g.edges {
+		for toNode, edge := range edgeMap {
 			age := now.Sub(edge.UpdatedAt)
 			if age > maxAge {
+				delete(edgeMap, toNode)
 				continue
 			}
 
@@ -241,6 +242,16 @@ func (g *Graph) ApplyDecay(decayRate float64, maxAge time.Duration) {
 			ageInHours := age.Hours()
 			decayFactor := math.Exp(-decayRate * ageInHours)
 			edge.Weight *= decayFactor
+
+			// Remove edges that decay below minimum meaningful weight
+			if edge.Weight < 0.1 {
+				delete(edgeMap, toNode)
+			}
+		}
+
+		// Clean up empty edge maps to avoid stale entries
+		if len(edgeMap) == 0 {
+			delete(g.edges, fromNode)
 		}
 	}
 }
@@ -579,7 +590,7 @@ func (g *Graph) calculateFollowHarvestingPenalty(followbackRate float64, followe
 
 		// Scale up penalty for massive follower counts (industrial harvesting)
 		if followerCount > 500 {
-			followHarvestingPenalty = math.Min(1.0, followHarvestingPenalty + 0.1)
+			followHarvestingPenalty = math.Min(1.0, followHarvestingPenalty+0.1)
 		} else if followerCount > 1000 {
 			followHarvestingPenalty = 1.0 // Maximum penalty for massive harvesting
 		}
@@ -742,7 +753,6 @@ func (g *Graph) GetPersuasivenessScore(userID string) (float64, error) {
 
 	return node.Engagement.Persuasiveness, nil
 }
-
 
 // calculateSpamScore detects clickbait/spam content based on engagement patterns
 func (g *Graph) calculateSpamScore(e *EngagementMetrics) float64 {

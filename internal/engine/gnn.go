@@ -29,23 +29,23 @@ type GNNLayer struct {
 
 // HybridGNN combines learned embeddings with heuristic features
 type HybridGNN struct {
-	Graph          *Graph
-	EmbeddingDim   int
-	HeuristicDim   int         // Dimension of hand-crafted features
-	Layers         []*GNNLayer // Neural network layers
+	Graph           *Graph
+	EmbeddingDim    int
+	HeuristicDim    int         // Dimension of hand-crafted features
+	Layers          []*GNNLayer // Neural network layers
 	AggregationType AggregationType
-	LearningRate   float64
-	TrainingData   []*TrainingExample
-	mu             sync.RWMutex
+	LearningRate    float64
+	TrainingData    []*TrainingExample
+	mu              sync.RWMutex
 }
 
 // TrainingExample represents a training sample for the GNN
 type TrainingExample struct {
-	UserID       string  `json:"user_id"`
-	TargetID     string  `json:"target_id"`
-	Interaction  string  `json:"interaction"` // "like", "follow", "share", etc.
-	Label        float64 `json:"label"`       // 1.0 for positive, 0.0 for negative
-	Timestamp    int64   `json:"timestamp"`
+	UserID      string  `json:"user_id"`
+	TargetID    string  `json:"target_id"`
+	Interaction string  `json:"interaction"` // "like", "follow", "share", etc.
+	Label       float64 `json:"label"`       // 1.0 for positive, 0.0 for negative
+	Timestamp   int64   `json:"timestamp"`
 }
 
 // Legacy GNN for backward compatibility
@@ -85,13 +85,13 @@ func NewHybridGNN(graph *Graph, embeddingDim, heuristicDim int, aggType Aggregat
 	}
 
 	return &HybridGNN{
-		Graph:          graph,
-		EmbeddingDim:   embeddingDim,
-		HeuristicDim:   heuristicDim,
-		Layers:         layers,
+		Graph:           graph,
+		EmbeddingDim:    embeddingDim,
+		HeuristicDim:    heuristicDim,
+		Layers:          layers,
 		AggregationType: aggType,
-		LearningRate:   0.01,
-		TrainingData:   make([]*TrainingExample, 0),
+		LearningRate:    0.01,
+		TrainingData:    make([]*TrainingExample, 0),
 	}
 }
 
@@ -473,11 +473,15 @@ func (h *HybridGNN) AddTrainingExample(userID, targetID, interaction string, lab
 
 // TrainOnBatch performs a mini-batch training step using recent interactions
 func (h *HybridGNN) TrainOnBatch(batchSize int) error {
+	if batchSize <= 0 {
+		batchSize = 1
+	}
+
 	// First, sample the batch with lock
 	h.mu.Lock()
-	if len(h.TrainingData) < batchSize {
+	if len(h.TrainingData) == 0 {
 		h.mu.Unlock()
-		return fmt.Errorf("insufficient training data: need %d, have %d", batchSize, len(h.TrainingData))
+		return fmt.Errorf("no training data available")
 	}
 
 	// Sample random batch from recent training data
