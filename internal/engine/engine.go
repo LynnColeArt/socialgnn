@@ -139,10 +139,10 @@ func (e *Engine) GetUserSpamFlags(userID string) (*UserSpamMetrics, error) {
 
 // GetFollowbackMetrics returns followback metrics for a user
 func (e *Engine) GetFollowbackMetrics(userID string) (*FollowbackMetrics, error) {
-	metrics := e.graph.calculateFollowbackMetrics(userID)
-	if metrics.Following == 0 && metrics.Followers == 0 && metrics.Followbacks == 0 {
-		return nil, fmt.Errorf("user %s not found or has no follow relationships", userID)
+	if _, exists := e.graph.GetNode(userID); !exists {
+		return nil, fmt.Errorf("user %s not found", userID)
 	}
+	metrics := e.graph.calculateFollowbackMetrics(userID)
 	return metrics, nil
 }
 
@@ -206,10 +206,17 @@ func (e *Engine) AddTrainingExample(userID, itemID string, rating float64) error
 	return nil
 }
 
-func (e *Engine) TrainBatch(epochs int) (float64, error) {
-	err := e.gnn.TrainOnBatch(epochs)
-	if err != nil {
-		return 0.0, err
+func (e *Engine) TrainBatch(epochs, batchSize int) (float64, error) {
+	if epochs <= 0 {
+		epochs = 1
+	}
+	if batchSize <= 0 {
+		batchSize = 32
+	}
+	for i := 0; i < epochs; i++ {
+		if err := e.gnn.TrainOnBatch(batchSize); err != nil {
+			return 0.0, err
+		}
 	}
 	// Return a synthetic loss for now - could be improved with actual loss calculation
 	return 0.1, nil
