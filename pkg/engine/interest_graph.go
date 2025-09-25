@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -31,17 +32,18 @@ type Location struct {
 
 // UserProfile contains rich user data for interest matching
 type UserProfile struct {
-	UserID      string     `json:"user_id"`
-	Interests   []Interest `json:"interests"`
-	Location    *Location  `json:"location,omitempty"`
-	Age         int        `json:"age,omitempty"`
-	Occupation  string     `json:"occupation,omitempty"`
-	JoinedAt    time.Time  `json:"joined_at"`
-	ActivityTags []string  `json:"activity_tags"` // e.g., ["early_bird", "night_owl", "weekend_active"]
+	UserID       string     `json:"user_id"`
+	Interests    []Interest `json:"interests"`
+	Location     *Location  `json:"location,omitempty"`
+	Age          int        `json:"age,omitempty"`
+	Occupation   string     `json:"occupation,omitempty"`
+	JoinedAt     time.Time  `json:"joined_at"`
+	ActivityTags []string   `json:"activity_tags"` // e.g., ["early_bird", "night_owl", "weekend_active"]
 }
 
 // BuildInterestConnections creates edges between all users based on interest similarity
 func (ig *InterestGraph) BuildInterestConnections(profiles []UserProfile) error {
+	var errs []string
 	for i, user1 := range profiles {
 		for j, user2 := range profiles {
 			if i >= j { // Avoid duplicates and self-connections
@@ -55,14 +57,19 @@ func (ig *InterestGraph) BuildInterestConnections(profiles []UserProfile) error 
 				edgeType := ig.determineEdgeType(user1, user2, similarity)
 
 				// Create bidirectional edges
-				err1 := ig.engine.AddEdge(user1.UserID, user2.UserID, similarity, edgeType)
-				err2 := ig.engine.AddEdge(user2.UserID, user1.UserID, similarity, edgeType)
-
-				if err1 != nil || err2 != nil {
-					continue // Skip if nodes don't exist yet
+				if err := ig.engine.AddEdge(user1.UserID, user2.UserID, similarity, edgeType); err != nil {
+					errs = append(errs, fmt.Sprintf("%s->%s: %v", user1.UserID, user2.UserID, err))
+					continue
+				}
+				if err := ig.engine.AddEdge(user2.UserID, user1.UserID, similarity, edgeType); err != nil {
+					errs = append(errs, fmt.Sprintf("%s->%s: %v", user2.UserID, user1.UserID, err))
 				}
 			}
 		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("interest connections had %d errors: %s", len(errs), strings.Join(errs, "; "))
 	}
 
 	return nil
@@ -244,7 +251,7 @@ func (ig *InterestGraph) haversineDistance(lat1, lng1, lat2, lng2 float64) float
 
 	a := math.Sin(dlat/2)*math.Sin(dlat/2) +
 		math.Cos(lat1Rad)*math.Cos(lat2Rad)*
-		math.Sin(dlng/2)*math.Sin(dlng/2)
+			math.Sin(dlng/2)*math.Sin(dlng/2)
 
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 
@@ -254,14 +261,14 @@ func (ig *InterestGraph) haversineDistance(lat1, lng1, lat2, lng2 float64) float
 func (ig *InterestGraph) calculateOccupationSimilarity(occ1, occ2 string) float64 {
 	// Define occupation groups for small town context
 	occupationGroups := map[string][]string{
-		"education":    {"teacher", "principal", "tutor", "librarian"},
-		"healthcare":   {"nurse", "doctor", "paramedic", "veterinarian"},
-		"trades":       {"mechanic", "electrician", "plumber", "carpenter", "welder"},
-		"agriculture":  {"rancher", "farmer", "ranch hand", "agricultural worker"},
-		"service":      {"restaurant owner", "shop owner", "barber", "cleaner"},
-		"government":   {"mayor", "sheriff", "clerk", "postal worker"},
-		"technology":   {"software developer", "it support", "programmer"},
-		"retail":       {"store manager", "cashier", "sales associate"},
+		"education":   {"teacher", "principal", "tutor", "librarian"},
+		"healthcare":  {"nurse", "doctor", "paramedic", "veterinarian"},
+		"trades":      {"mechanic", "electrician", "plumber", "carpenter", "welder"},
+		"agriculture": {"rancher", "farmer", "ranch hand", "agricultural worker"},
+		"service":     {"restaurant owner", "shop owner", "barber", "cleaner"},
+		"government":  {"mayor", "sheriff", "clerk", "postal worker"},
+		"technology":  {"software developer", "it support", "programmer"},
+		"retail":      {"store manager", "cashier", "sales associate"},
 	}
 
 	occ1Lower := strings.ToLower(occ1)

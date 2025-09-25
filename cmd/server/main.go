@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/LynnColeArt/socialgnn/internal/api"
-	"github.com/LynnColeArt/socialgnn/internal/engine"
+	"github.com/LynnColeArt/socialgnn/pkg/engine"
 )
 
 func main() {

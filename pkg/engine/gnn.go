@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -38,6 +39,8 @@ type HybridGNN struct {
 	TrainingData    []*TrainingExample
 	mu              sync.RWMutex
 }
+
+var ErrNoTrainingData = errors.New("no training data available")
 
 // TrainingExample represents a training sample for the GNN
 type TrainingExample struct {
@@ -472,7 +475,7 @@ func (h *HybridGNN) AddTrainingExample(userID, targetID, interaction string, lab
 }
 
 // TrainOnBatch performs a mini-batch training step using recent interactions
-func (h *HybridGNN) TrainOnBatch(batchSize int) error {
+func (h *HybridGNN) TrainOnBatch(batchSize int) (float64, int, error) {
 	if batchSize <= 0 {
 		batchSize = 1
 	}
@@ -481,7 +484,7 @@ func (h *HybridGNN) TrainOnBatch(batchSize int) error {
 	h.mu.Lock()
 	if len(h.TrainingData) == 0 {
 		h.mu.Unlock()
-		return fmt.Errorf("no training data available")
+		return 0, 0, ErrNoTrainingData
 	}
 
 	// Sample random batch from recent training data
@@ -494,6 +497,8 @@ func (h *HybridGNN) TrainOnBatch(batchSize int) error {
 
 	// Compute gradients without holding lock
 	gradientUpdates := make(map[string]float64)
+	totalLoss := 0.0
+	processed := 0
 
 	for _, example := range batch {
 		// Get embeddings for user and target (uses unsafe version internally now)
@@ -508,7 +513,9 @@ func (h *HybridGNN) TrainOnBatch(batchSize int) error {
 		predicted := h.cosineSimilarity(userEmbedding, targetEmbedding)
 
 		// Compute loss (mean squared error) - used for monitoring
-		_ = (predicted - example.Label) * (predicted - example.Label)
+		loss := (predicted - example.Label) * (predicted - example.Label)
+		totalLoss += loss
+		processed++
 
 		// Simple gradient update (this is a simplified version)
 		gradient := 2.0 * (predicted - example.Label) * h.LearningRate
@@ -525,7 +532,7 @@ func (h *HybridGNN) TrainOnBatch(batchSize int) error {
 		h.updateEmbeddingGradient(nodeID, grad)
 	}
 
-	return nil
+	return totalLoss, processed, nil
 }
 
 // updateEmbeddingGradient applies a gradient update to a node's embedding

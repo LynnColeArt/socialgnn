@@ -147,6 +147,22 @@ services:
       - ./data:/app/data
 ```
 
+## Library Usage
+
+You can embed SocialGNN directly inside another Go service by importing the engine package:
+
+```go
+import "github.com/LynnColeArt/socialgnn/pkg/engine"
+
+func buildRecommendations(userID string) ([]*engine.Node, error) {
+    gnn := engine.NewEngine()
+    gnn.LoadSampleData() // or load your own data
+    return gnn.GetRecommendations(userID, engine.PostNode, 10)
+}
+```
+
+The engine API exposes the same functionality used by the HTTP server. All exported types under `pkg/engine` are now part of the public, supported surface.
+
 ## Integration with MongoDB
 
 The SocialGNN can be integrated with existing MongoDB applications:
